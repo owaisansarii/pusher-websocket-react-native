@@ -17,6 +17,17 @@ const PusherWebsocketReactNative = NativeModules.PusherWebsocketReactNative
       }
     );
 
+
+enum EVENT_TYPE {
+  ON_AUTHORIZER = 'PusherReactNative:onAuthorizer',
+  ON_CONNECTION_STATE_CHANGE = 'PusherReactNative:onConnectionStateChange',
+  ON_SUBSCRIPTION_ERROR = 'PusherReactNative:onSubscriptionError',
+  ON_EVENT = 'PusherReactNative:onEvent',
+  ON_ERROR = 'PusherReactNative:onError',
+  ON_MEMBER_ADDED = 'PusherReactNative:onMemberAdded',
+  ON_MEMBER_REMOVED = 'PusherReactNative:onMemberRemoved',
+}
+
 export interface PusherAuthorizerResult {
   /** required for private channels */
   auth?: string;
@@ -239,11 +250,13 @@ export class Pusher {
     this.addListener('onAuthorizer', async ({ channelName, socketId }) => {
       const data = await args.onAuthorizer?.(channelName, socketId);
       if (data) {
+        // console.log('PUSER onauth')
         await PusherWebsocketReactNative.onAuthorizer(
           channelName,
           socketId,
           data
         );
+        // console.log('PUSER AFTER ON AUTH')
       }
     });
 
@@ -275,6 +288,26 @@ export class Pusher {
 
   public async disconnect() {
     return await PusherWebsocketReactNative.disconnect();
+  }
+
+  private unsubscribeAllChannels() {
+    const channelsCopy = new Map(this.channels);
+    channelsCopy.forEach((channel) => {
+      this.unsubscribe({ channelName: channel.channelName });
+    });
+  }
+
+  private removeAllListeners() {
+    this.pusherEventEmitter.removeAllListeners(EVENT_TYPE.ON_AUTHORIZER);
+    this.pusherEventEmitter.removeAllListeners(EVENT_TYPE.ON_ERROR);
+    this.pusherEventEmitter.removeAllListeners(EVENT_TYPE.ON_EVENT);
+    this.pusherEventEmitter.removeAllListeners(EVENT_TYPE.ON_MEMBER_ADDED);
+    this.pusherEventEmitter.removeAllListeners(EVENT_TYPE.ON_MEMBER_REMOVED);
+  }
+
+  public async resetPusherInstance() {
+    this.removeAllListeners();
+    this.unsubscribeAllChannels();
   }
 
   async subscribe(args: {
